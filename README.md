@@ -3,11 +3,27 @@ Add your oura ring stats to an Obsidian note for any dates. The documentation fo
 API is available at [API Documentation](https://cloud.ouraring.com/docs).
 
 ### Features
-- Fetch your Oura Ring data using your personal access token
-  - To create a personal access token visit and login to https://cloud.ouraring.com/personal-access-tokens 
-and copy the token into the settings for this plugin 
+- Connect to Oura using OAuth, with automatic access-token refresh
 - Insert the data in a page which is formatted YYYY-MM-DD
 - Or insert into any page and it will use whatever today's date is
+
+### Connect to Oura
+
+1. Create a personal application in [Oura My Applications](https://cloud.ouraring.com/oauth/applications).
+2. Register `obsidian://oura-oauth` as its redirect URI. If Oura's application form requires HTTPS, register an HTTPS URL you control and enter that exact URL in the plugin instead. The destination must preserve the query string so you can copy the callback URL.
+3. Open **Settings → Oura Ring** and enter your application's client ID and client secret. These must be your own application's credentials, not a shared secret distributed with the plugin.
+4. Select **Connect to Oura**, sign in through your browser, and allow daily data access.
+5. Allow the browser to open Obsidian. If it does not return to the correct vault, copy the complete redirected URL into **Complete sign-in manually** and submit within 10 minutes. Keep the plugin loaded during sign-in.
+
+Sleep, readiness, and activity imports request only the `daily` scope. Expiring tokens refresh automatically on import. If authorization expires or is revoked, reconnect in settings. Existing personal access tokens and templates are preserved on upgrade. When no OAuth connection exists, imports continue to use the saved personal token and show a migration notice. A successful OAuth exchange removes the legacy token; disconnect also clears it. Legacy token acceptance remains controlled by Oura.
+
+OAuth credentials and tokens are stored **without encryption** in `.obsidian/plugins/obsidian-oura-plugin/data.json`. Keep this file out of source control and sharing. Avoid syncing it between devices: Oura refresh tokens are single-use and each plugin instance maintains its own connection. Disconnect clears local tokens and cancels pending sign-in; revoke the application's access in your Oura account to remove the server-side grant.
+
+This uses Oura's documented [authorization-code flow](https://cloud.ouraring.com/docs/authentication#oauth2), which requires a client secret. No shared application secret is bundled. A public one-click connection would require a separately operated OAuth backend. The custom-scheme callback's acceptance by Oura and desktop/mobile browser handoff still require live verification; the manual HTTPS callback is available when a custom scheme cannot be registered.
+
+### Development
+
+Use npm and the tracked `package-lock.json` for reproducible installs. Run `npm ci`, `npm test`, `npm run typecheck`, and `npm run build`. The production bundle is `main.js`. See [OAuth verification and next steps](docs/oauth-quality.md) for validation scope and remaining device checks.
 
 ### Oura API Variables
 

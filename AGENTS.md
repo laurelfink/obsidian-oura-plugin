@@ -1,0 +1,9 @@
+# Oura plugin working notes
+
+- Never bundle a shared OAuth client secret or log authorization codes, tokens, credentials, or personal API responses.
+- Oura refresh tokens are single-use. Keep refresh serialized per plugin instance and invalidate in-flight refreshes only on disconnect. Cancelling sign-in or editing credentials must not discard rotated refresh tokens. Keep sign-in cancellation separate.
+- Authentication failures must reach the command's notice before any note mutation.
+- Run `npm test`, `npm run typecheck`, and `npm run build` after authentication changes; these checks are automated in CI. Live provider behavior and visual/device checks are separate evidence.
+- Maintain the verification backlog and decisions in `docs/oauth-quality.md`; do not claim browser handoff or mobile support is verified without testing those environments.
+
+- Use npm with the tracked package-lock.json; use `npm ci` in development and CI. Clear refresh tokens only for an explicit invalid_grant response, not a generic HTTP 400/401.

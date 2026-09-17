@@ -1,5 +1,6 @@
 import {Editor, MarkdownView, moment, Notice, Plugin} from 'obsidian';
 import OuraApi from "./oura-api";
+import {DEFAULT_REDIRECT_URI, OAUTH_CALLBACK, OuraOAuth} from "./oauth";
 import {ActivitiesEntry, OuraPluginSettings, OuraRingStats, ReadinessEntry, SleepEntry} from "./types";
 import {OuraSettingTab} from "./settings";
 import {getToday} from "./utils";
@@ -85,7 +86,10 @@ const fetchOuraStats = async (api: OuraApi, day: string): Promise<OuraRingStats>
 }
 
 const DEFAULT_SETTINGS: OuraPluginSettings = {
-	personalAccessToken: null,
+	clientId: "",
+	clientSecret: "",
+	redirectUri: DEFAULT_REDIRECT_URI,
+	oauthTokens: null,
 	sleepTemplate: `Sleep Day: $$sleep_day
 Sleep Score: $$sleep_score
 Sleep Timestamp: $$sleep_timestamp
@@ -155,53 +159,72 @@ function replacePlaceholders(template: string, data: OuraRingStats) {
 export default class OuraPlugin extends Plugin {
 	public ouraApi: OuraApi;
 	settings: OuraPluginSettings;
+	oauth: OuraOAuth;
+	private settingsTab: OuraSettingTab;
 
 	async onload() {
 		console.log('Loading Oura Ring plugin');
 
 		await this.loadSettings();
-
-		if (!this.ouraApi) {
-			this.ouraApi = new OuraApi(this.settings.personalAccessToken);
+		if (this.settings.personalAccessToken && !this.settings.oauthTokens) {
+			new Notice('Oura is using a legacy personal access token. Please migrate to OAuth in the plugin settings.');
 		}
+
+		this.oauth = new OuraOAuth(this.settings, () => this.saveSettings());
+		this.ouraApi = new OuraApi(this.oauth);
+		this.registerObsidianProtocolHandler(OAUTH_CALLBACK, async params => {
+			try {
+				await this.oauth.complete(params);
+				new Notice('Connected to Oura');
+				this.settingsTab?.display();
+			} catch (error) {
+				new Notice(error instanceof Error ? error.message : 'Oura sign-in failed. Please reconnect.');
+			}
+		});
 
 		this.addCommand({
 			id: 'insert-oura-ring-stats',
 			name: 'Insert Oura Ring Stats',
 			editorCallback: async (editor: Editor) => {
-				if (!this.settings.personalAccessToken) {
-					new Notice('Personal access token missing, please enter in plugin settings')
+				if (!this.settings.oauthTokens && !this.settings.personalAccessToken) {
+					new Notice('Connect to Oura in the plugin settings first.')
 					return
 				}
-				const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				const activeDocument = activeView.file.basename
-				const metricsForDay = moment(activeDocument, 'YYYY-MM-DD', true).isValid() ? activeDocument : getToday()
+				try {
+					const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+					const activeDocument = activeView?.file?.basename ?? ""
+					const metricsForDay = moment(activeDocument, 'YYYY-MM-DD', true).isValid() ? activeDocument : getToday()
 
-				const stats : OuraRingStats = await fetchOuraStats(this.ouraApi, metricsForDay)
+					const stats : OuraRingStats = await fetchOuraStats(this.ouraApi, metricsForDay)
 
-				let ouraText = ''
+					let ouraText = ''
 
-				ouraText += replacePlaceholders(this.settings.sleepTemplate, stats);
-				ouraText += '\n';
-				ouraText += replacePlaceholders(this.settings.readinessTemplate, stats);
-				ouraText += '\n';
-				ouraText += replacePlaceholders(this.settings.activitiesTemplate, stats);
-				ouraText += '\n';
+					ouraText += replacePlaceholders(this.settings.sleepTemplate, stats);
+					ouraText += '\n';
+					ouraText += replacePlaceholders(this.settings.readinessTemplate, stats);
+					ouraText += '\n';
+					ouraText += replacePlaceholders(this.settings.activitiesTemplate, stats);
+					ouraText += '\n';
 
-				editor.replaceSelection(ouraText);
+					editor.replaceSelection(ouraText);
+				} catch (error) {
+					new Notice(error instanceof Error ? error.message : 'Could not fetch Oura data. Try again.');
+				}
 
 			}
 		});
 
-		this.addSettingTab(new OuraSettingTab(this.app, this));
+		this.settingsTab = new OuraSettingTab(this.app, this);
+		this.addSettingTab(this.settingsTab);
 	}
 
 	onunload() {
-		console.log('unloading Oura Ring plugin');
+		this.oauth?.cancel();
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const saved = await this.loadData() ?? {};
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
 	}
 
 	async saveSettings() {
