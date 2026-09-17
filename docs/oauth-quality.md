@@ -36,7 +36,7 @@ The available Obsidian session was a personal vault without this build installed
 3. Repeat browser handoff/manual callback and import on Obsidian mobile, including the software keyboard. Mobile compatibility is intended through Obsidian requestUrl and protocol APIs; it is not device-verified.
 4. Keep synced plugin credential files out of multi-device use, or design per-device credential storage before claiming seamless multi-device authentication.
 
-No release has been published and no personal vault has been modified for testing.
+No personal vault has been modified for testing. Release validation status is recorded below.
 
 
 ## Review fixes and follow-ups
@@ -49,3 +49,8 @@ No release has been published and no personal vault has been modified for testin
 - Standardized on npm: package-lock.json is included, yarn.lock is removed, and both check/release workflows use npm ci with Node 22.
 - Refresh failures clear tokens only for explicit invalid_grant responses with HTTP 400/401. Other errors, including non-JSON responses, preserve the saved connection. Tests distinguish invalid_request, invalid_client, missing error codes, rate limits, and server errors.
 - Remaining follow-ups: consider saving credential fields on blur and verify a daily-data request after connection. Live callback and rendered UI checks above remain unverified; no real Oura app is available for that check in this task.
+
+
+## Release version consistency
+
+Symptom: published tags through 0.2.6 contained a 0.2.3 manifest. Cause: release tags were not checked against plugin metadata. Prevention: 0.2.7 updates package.json, package-lock.json, manifest.json, and versions.json together; check and release CI run check:version, with a tag equality check during release. Publication uses the triggering tag and uploads the production bundle, manifest, stylesheet, and ZIP. Live provider and device checks remain unverified.
